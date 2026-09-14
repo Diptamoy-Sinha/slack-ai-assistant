@@ -1,0 +1,16 @@
+slack-sdk==3.44.1
+slack-bolt==1.30.0
+slack-cli-hooks<1.0.0
+
+# Strands agent
+strands-agents==1.45.0
+tavily-python==0.7.26
+boto3==1.43.36
+
+# If you use a different LLM vendor, replace this dependency
+openai==3.13.0
+
+pytest==9.1.1
+ruff==0.16.7
+python-dotenv==1.2.3
+slack-cli-hooks<1.0.0
