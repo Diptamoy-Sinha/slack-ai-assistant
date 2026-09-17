@@ -31,6 +31,10 @@ class AppConfig:
     s3_session_prefix: str = "sessions"
     aws_region: str = "us-east-1"
     s3_auto_create_bucket: bool = False
+    ddb_reader_role_arn: str | None = None
+    ddb_external_id: str | None = None
+    ddb_region: str | None = None
+    ddb_table_allowlist: str | None = None
 
 
 def _config_source() -> str:
@@ -61,6 +65,10 @@ def _load_local_values() -> dict[str, str]:
         "S3_SESSION_PREFIX",
         "AWS_REGION",
         "S3_AUTO_CREATE_BUCKET",
+        "DDB_READER_ROLE_ARN",
+        "DDB_EXTERNAL_ID",
+        "DDB_REGION",
+        "DDB_TABLE_ALLOWLIST",
     ]
     return {key: value for key in keys if (value := os.getenv(key))}
 
@@ -138,6 +146,10 @@ def _build_config(values: dict[str, str]) -> AppConfig:
         or "sessions",
         aws_region=_optional(values, "AWS_REGION", "us-east-1") or "us-east-1",
         s3_auto_create_bucket=_as_bool(_optional(values, "S3_AUTO_CREATE_BUCKET")),
+        ddb_reader_role_arn=_optional(values, "DDB_READER_ROLE_ARN"),
+        ddb_external_id=_optional(values, "DDB_EXTERNAL_ID"),
+        ddb_region=_optional(values, "DDB_REGION"),
+        ddb_table_allowlist=_optional(values, "DDB_TABLE_ALLOWLIST"),
     )
 
 
@@ -155,6 +167,10 @@ def _apply_to_environ(config: AppConfig) -> None:
         "S3_SESSION_PREFIX": config.s3_session_prefix,
         "AWS_REGION": config.aws_region,
         "S3_AUTO_CREATE_BUCKET": "true" if config.s3_auto_create_bucket else "false",
+        "DDB_READER_ROLE_ARN": config.ddb_reader_role_arn,
+        "DDB_EXTERNAL_ID": config.ddb_external_id,
+        "DDB_REGION": config.ddb_region,
+        "DDB_TABLE_ALLOWLIST": config.ddb_table_allowlist,
     }
     for key, value in mapping.items():
         if value is not None:
@@ -174,6 +190,13 @@ def init_config() -> AppConfig:
     else:
         logger.info("Loading config from AWS Secrets Manager")
         values = _load_secrets_manager_values()
+        for key in (
+            "DDB_READER_ROLE_ARN",
+            "DDB_REGION",
+            "DDB_TABLE_ALLOWLIST",
+        ):
+            if env_value := os.getenv(key, "").strip():
+                values[key] = env_value
 
     config = _build_config(values)
     _apply_to_environ(config)

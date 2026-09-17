@@ -1,0 +1,28 @@
+.env
+.env.*
+!.env.example
+
+.venv/
+.sessions/
+logs/
+
+.git/
+.gitignore
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+.cursor/
+*.md
+!README.md
+
+# The water-knowledge wiki is data the agent reads at runtime, not docs —
+# re-include it after the blanket *.md exclusion above. Its raw/ scans are not
+# needed in the image (the agent answers from wiki/ only).
+!water_knowledge/wiki/*.md
+!water_knowledge/wiki/**/*.md
+water_knowledge/raw/
+
+deploy/

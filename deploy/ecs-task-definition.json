@@ -1,0 +1,35 @@
+{
+  "family": "slack-ai-assistant",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT_ID:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT_ID:role/slack-ai-assistant-task-role",
+  "containerDefinitions": [
+    {
+      "name": "slack-ai-assistant",
+      "image": "ACCOUNT_ID.dkr.ecr.us-east-1.amazonaws.com/slack-ai-assistant:latest",
+      "essential": true,
+      "environment": [
+        { "name": "CONFIG_SOURCE", "value": "aws" },
+        { "name": "APP_SECRETS_NAME", "value": "slack-ai-assistant/prod" },
+        { "name": "AWS_REGION", "value": "us-east-1" },
+        { "name": "DDB_READER_ROLE_ARN", "value": "arn:aws:iam::407646151992:role/slack-ai-assistant-dynamodb-reader" },
+        { "name": "DDB_REGION", "value": "us-east-1" },
+        { "name": "DDB_TABLE_ALLOWLIST", "value": "Todo" },
+        { "name": "LOG_LEVEL", "value": "INFO" },
+        { "name": "AGENT_LOG_FILE", "value": "" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/slack-ai-assistant",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs",
+          "awslogs-create-group": "true"
+        }
+      }
+    }
+  ]
+}

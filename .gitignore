@@ -1,6 +1,8 @@
 .env
+deploy/secrets-template.json
 .venv/
 .sessions/
 logs/
 __pycache__/
 *.pyc
+water_knowledge/raw/*

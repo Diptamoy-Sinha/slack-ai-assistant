@@ -8,6 +8,8 @@ from tavily import TavilyClient
 from agent.hooks import AGENT_CALL_LOGGER
 from agent.model import openai_model
 from agent.session_manager import build_session_manager
+from agent.tools.dynamodb import dynamodb_tools
+from agent.tools.wiki import WikiTool, wiki_tools
 from app_config import get_config
 
 
@@ -57,9 +59,79 @@ def get_time(tz_name: str = "UTC") -> str:
     return datetime.now(ZoneInfo(tz_name)).isoformat(timespec="seconds")
 
 
+@lru_cache(maxsize=1)
+def _wiki() -> WikiTool:
+    """One WikiTool for the process, so its slug index is built once."""
+    return wiki_tools()
+
+
+def _agent_tools() -> list:
+    tools = [web_search, get_time, *_wiki().tools()]
+    ddb = dynamodb_tools()
+    if ddb is not None:
+        tools.extend(ddb.tools())
+    return tools
+
+
 SYSTEM_PROMPT = """
-You are a helpful assistant that can search the web for information and get the current time.
+You are a helpful assistant. You can answer from a curated knowledge base, search
+the web, and get the current time.
+
+## The water-knowledge wiki
+
+You have a wiki compiled from a digital collection on water quality, testing and
+analysis — with distillation and filtration, water-power, water hardness and
+softening, and magnesium extraction from seawater as adjacent subjects. It is
+built from three primary sources: Jane Marcet's Conversations on Chemistry
+(COC-1809), a W. J. Bush & Co. trade manual on aerated mineral waters
+(BUSH-1897), and a USDA civil-defence pamphlet on family food stockpiles
+(FFS-1961).
+
+For any question about these subjects, the wiki is your source — not the web and
+not your own background knowledge:
+
+- The wiki's index is included below — its table of contents and intent map. Use
+  it to pick the entry-point page, or search_wiki when the index is not specific
+  enough. Follow the [[wikilinks]] you find; read_wiki_page and read_wiki_pages
+  take a bare slug, so "[[filtration]]" and "topics/filtration.md" both work. Use
+  read_wiki_pages when you already know you need more than one page.
+- Carry the citations through. Wiki claims are cited as [KEY p.PRINTED (scan N)];
+  quote that citation with the claim so the answer stays auditable.
+- These sources span 152 years and disagree with each other. When they do, say
+  who says what and when, rather than flattening it into one answer. The wiki's
+  contradictions.md page tracks known conflicts and OCR artefacts.
+- Do not treat 1809, 1897 or 1961 claims as current guidance. They are historical
+  evidence; flag them as such when a user might act on them.
+- If the wiki does not cover something, say so plainly. Do not fill the gap with
+  web results dressed up as wiki content — if you do use web_search there, label
+  which parts came from the web.
+
+## DynamoDB (Todo)
+
+When a user asks about a specific todo item, use get_dynamodb_item. The Todo
+table lives in a cross-account DynamoDB database; pass table_name ``Todo`` and
+the todo id (e.g. ``todo-001``). The tool looks up by partition key ``id`` even
+though the table also has a sort key. If no item is found, say so plainly.
 """
+
+
+def _system_prompt() -> str:
+    """SYSTEM_PROMPT plus the wiki's index, read fresh on every agent build.
+
+    build_agent runs once per user message, so an index.md edited on EFS reaches
+    the next message without redeploying or restarting the task.
+    """
+    index = _wiki().load_index()
+    if index.startswith("(index.md not found)"):
+        return (
+            SYSTEM_PROMPT + "\n## Wiki index\n\n"
+            "The index could not be read. Use search_wiki to find pages before "
+            "answering from the wiki.\n"
+        )
+    return (
+        SYSTEM_PROMPT + "\n## Wiki index\n\n"
+        "The wiki's index.md as of this message:\n\n" + index
+    )
 
 
 def build_agent(
@@ -74,8 +146,8 @@ def build_agent(
 
     return Agent(
         model=openai_model,
-        tools=[web_search, get_time],
-        system_prompt=SYSTEM_PROMPT,
+        tools=_agent_tools(),
+        system_prompt=_system_prompt(),
         session_manager=session_manager,
         hooks=hooks,
         trace_attributes={
